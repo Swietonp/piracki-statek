@@ -8,7 +8,8 @@ HackNation 2024
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, field_validator
+import re
 from typing import Optional, List, Literal, Set, Union
 from dataclasses import dataclass
 from datetime import datetime, date
@@ -21,6 +22,28 @@ import httpx
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
 import logging
+import base64
+import os
+from dotenv import load_dotenv
+
+# Ładuj zmienne środowiskowe z .env
+load_dotenv()
+
+# OpenAI dla rozpoznawania obrazów
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    OpenAI = None
+
+# Google Gemini jako darmowa alternatywa
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None
 
 # Opcjonalny import rdflib do walidacji RDF
 try:
@@ -355,7 +378,15 @@ class RzeczZnaleziona(BaseModel):
     data_przyjecia: Optional[date] = None
     data_waznosci: Optional[date] = None
     kontakt_telefon: str
-    kontakt_email: EmailStr
+    kontakt_email: str
+    
+    @field_validator('kontakt_email')
+    @classmethod
+    def validate_email(cls, v):
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if v and not re.match(email_pattern, v):
+            raise ValueError('Nieprawidłowy format email')
+        return v
     kontakt_adres: Optional[str] = None
     godziny_otwarcia: Optional[str] = None
     zdjecie_url: Optional[str] = None
@@ -401,6 +432,232 @@ class PublikacjaResponse(BaseModel):
     published_at: datetime
 
 
+class ImageAnalysisResponse(BaseModel):
+    """Response z analizy obrazu przez AI"""
+    success: bool
+    message: str
+    suggested_fields: dict
+    confidence: float
+    image_description: str
+
+
+# ============== ANALIZA OBRAZU AI ==============
+
+# Wspólny prompt dla wszystkich modeli AI
+AI_SYSTEM_PROMPT = """Jesteś asystentem pomagającym urzędnikom katalogować rzeczy znalezione.
+Analizujesz zdjęcie przedmiotu i zwracasz szczegółowe informacje w formacie JSON.
+
+KATEGORIE do wyboru (MUSISZ wybrać jedną z tych):
+- dokumenty
+- elektronika
+- odziez
+- bizuteria
+- klucze
+- portfele
+- telefony
+- rowery
+- torby_plecaki
+- okulary
+- zegarki
+- zabawki
+- sprzet_sportowy
+- instrumenty_muzyczne
+- inne
+
+Odpowiedz TYLKO w formacie JSON (bez markdown, bez ```):
+{
+    "kategoria": "wybrana_kategoria",
+    "nazwa_przedmiotu": "krótka nazwa przedmiotu (max 100 znaków)",
+    "opis": "szczegółowy opis przedmiotu bez danych osobowych (kolor, marka, stan, cechy charakterystyczne)",
+    "confidence": 0.0-1.0,
+    "image_description": "co widzisz na zdjęciu"
+}"""
+
+
+def analyze_with_gemini(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
+    """
+    Analizuje obraz za pomocą Google Gemini Flash (DARMOWE!).
+    """
+    if not GEMINI_AVAILABLE:
+        return None
+    
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        return None
+    
+    try:
+        genai.configure(api_key=api_key)
+        
+        # Użyj Gemini 1.5 Flash - szybki i darmowy
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Przygotuj obraz
+        image_part = {
+            "mime_type": mime_type,
+            "data": image_bytes
+        }
+        
+        # Generuj odpowiedź
+        response = model.generate_content(
+            [AI_SYSTEM_PROMPT + "\n\nPrzeanalizuj ten przedmiot znaleziony i wypełnij formularz:", image_part],
+            generation_config=genai.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=500,
+            )
+        )
+        
+        # Parsowanie odpowiedzi JSON
+        response_text = response.text.strip()
+        
+        # Usuń markdown code blocks jeśli są
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            # Znajdź linię zamykającą
+            end_idx = len(lines) - 1
+            for i, line in enumerate(lines[1:], 1):
+                if line.strip() == "```":
+                    end_idx = i
+                    break
+            response_text = "\n".join(lines[1:end_idx])
+        
+        result_data = json.loads(response_text)
+        
+        return {
+            "success": True,
+            "message": "Obraz przeanalizowany pomyślnie (Gemini Flash)",
+            "suggested_fields": {
+                "kategoria": result_data.get("kategoria", "inne"),
+                "nazwa_przedmiotu": result_data.get("nazwa_przedmiotu", ""),
+                "opis": result_data.get("opis", "")
+            },
+            "confidence": result_data.get("confidence", 0.8),
+            "image_description": result_data.get("image_description", ""),
+            "ai_provider": "gemini"
+        }
+        
+    except Exception as e:
+        logger.exception(f"Błąd analizy obrazu przez Gemini: {e}")
+        return None
+
+
+def analyze_with_openai(image_base64: str, mime_type: str = "image/jpeg") -> dict:
+    """
+    Analizuje obraz za pomocą OpenAI GPT-4 Vision.
+    """
+    if not OPENAI_AVAILABLE:
+        return None
+    
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": AI_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Przeanalizuj ten przedmiot znaleziony i wypełnij formularz:"
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{image_base64}",
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=500,
+            temperature=0.3
+        )
+        
+        # Parsowanie odpowiedzi JSON
+        response_text = response.choices[0].message.content.strip()
+        
+        # Usuń markdown code blocks jeśli są
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            response_text = "\n".join(lines[1:-1])
+        
+        result_data = json.loads(response_text)
+        
+        return {
+            "success": True,
+            "message": "Obraz przeanalizowany pomyślnie (GPT-4 Vision)",
+            "suggested_fields": {
+                "kategoria": result_data.get("kategoria", "inne"),
+                "nazwa_przedmiotu": result_data.get("nazwa_przedmiotu", ""),
+                "opis": result_data.get("opis", "")
+            },
+            "confidence": result_data.get("confidence", 0.8),
+            "image_description": result_data.get("image_description", ""),
+            "ai_provider": "openai"
+        }
+        
+    except Exception as e:
+        logger.exception(f"Błąd analizy obrazu przez OpenAI: {e}")
+        return None
+
+
+def analyze_image_with_ai(image_base64: str, mime_type: str = "image/jpeg", image_bytes: bytes = None) -> dict:
+    """
+    Analizuje obraz za pomocą dostępnego AI (Gemini lub OpenAI).
+    Kolejność priorytetu:
+    1. Google Gemini Flash (darmowy!)
+    2. OpenAI GPT-4 Vision
+    3. Fallback - brak AI
+    """
+    
+    # Jeśli mamy bytes, konwertuj na base64 jeśli potrzeba
+    if image_bytes is None and image_base64:
+        image_bytes = base64.b64decode(image_base64)
+    elif image_bytes and not image_base64:
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    
+    # 1. Próbuj Gemini (darmowy!)
+    result = analyze_with_gemini(image_bytes, mime_type)
+    if result:
+        logger.info("Użyto Gemini Flash do analizy obrazu")
+        return result
+    
+    # 2. Próbuj OpenAI
+    result = analyze_with_openai(image_base64, mime_type)
+    if result:
+        logger.info("Użyto OpenAI GPT-4 Vision do analizy obrazu")
+        return result
+    
+    # 3. Fallback - brak AI
+    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    
+    if not gemini_key and not openai_key:
+        return {
+            "success": False,
+            "message": "Brak klucza API. Ustaw GEMINI_API_KEY (darmowy!) lub OPENAI_API_KEY w pliku .env",
+            "suggested_fields": {},
+            "confidence": 0.0,
+            "image_description": "",
+            "ai_provider": None
+        }
+    
+    return {
+        "success": False,
+        "message": "Nie udało się przeanalizować obrazu. Sprawdź klucze API.",
+        "suggested_fields": {},
+        "confidence": 0.0,
+        "image_description": "",
+        "ai_provider": None
+    }
+
+
 # ============== ENDPOINTY ==============
 
 @app.get("/")
@@ -408,16 +665,56 @@ async def root():
     """Strona główna API"""
     return {
         "name": "ZnalezionePL API",
-        "version": "1.0.0",
+        "version": "1.2.0",
         "description": "API do udostępniania danych o rzeczach znalezionych",
         "docs": "/api/docs",
         "endpoints": {
+            "ai-status": "/api/ai/status (GET) - Sprawdź dostępność AI",
+            "analyze-image": "/api/analyze-image (POST) - Rozpoznawanie przedmiotu ze zdjęcia (AI)",
             "validate": "/api/validate",
             "validate/rdf": "/api/validate/rdf",
             "publish": "/api/publish",
             "export/rdf": "/api/export/rdf",
             "upload": "/api/upload"
         }
+    }
+
+
+@app.get("/api/ai/status")
+async def ai_status():
+    """
+    Sprawdza status dostępności AI.
+    
+    Zwraca informacje o dostępnych providerach:
+    - gemini: Google Gemini Flash (DARMOWY!)
+    - openai: OpenAI GPT-4 Vision
+    """
+    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    openai_key = os.getenv("OPENAI_API_KEY")
+    
+    providers = []
+    if gemini_key and GEMINI_AVAILABLE:
+        providers.append({
+            "name": "gemini",
+            "display_name": "Google Gemini Flash",
+            "status": "available",
+            "free": True,
+            "priority": 1
+        })
+    if openai_key and OPENAI_AVAILABLE:
+        providers.append({
+            "name": "openai", 
+            "display_name": "OpenAI GPT-4 Vision",
+            "status": "available",
+            "free": False,
+            "priority": 2
+        })
+    
+    return {
+        "ai_available": len(providers) > 0,
+        "providers": providers,
+        "active_provider": providers[0]["name"] if providers else None,
+        "message": "AI gotowe do użycia!" if providers else "Brak klucza API. Ustaw GEMINI_API_KEY (darmowy!) lub OPENAI_API_KEY w pliku .env"
     }
 
 
@@ -530,6 +827,77 @@ async def validate_rdf_file(file: UploadFile = File(...)):
         "extension": extension,
         **result
     }
+
+
+@app.post("/api/analyze-image")
+async def analyze_image(file: UploadFile = File(...)):
+    """
+    Analiza zdjęcia przedmiotu za pomocą AI.
+    
+    Dostępne providery AI (w kolejności priorytetu):
+    1. Google Gemini Flash (DARMOWY!) - ustaw GEMINI_API_KEY
+    2. OpenAI GPT-4 Vision - ustaw OPENAI_API_KEY
+    
+    Zwraca sugerowane pola formularza:
+    - kategoria
+    - nazwa_przedmiotu
+    - opis
+    
+    Obsługiwane formaty: JPEG, PNG, GIF, WEBP
+    """
+    # Sprawdź typ pliku
+    allowed_types = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    content_type = file.content_type or "image/jpeg"
+    
+    if content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nieobsługiwany format. Obsługiwane: JPEG, PNG, GIF, WEBP"
+        )
+    
+    # Odczytaj zawartość pliku
+    content = await file.read()
+    
+    # Sprawdź rozmiar (max 20MB)
+    max_size = 20 * 1024 * 1024  # 20MB
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail="Plik jest zbyt duży. Maksymalny rozmiar to 20MB."
+        )
+    
+    # Konwertuj do base64
+    image_base64 = base64.b64encode(content).decode("utf-8")
+    
+    # Analizuj obraz (próbuje Gemini, potem OpenAI)
+    result = analyze_image_with_ai(image_base64, content_type, image_bytes=content)
+    
+    return result
+
+
+@app.post("/api/analyze-image/base64", response_model=ImageAnalysisResponse)
+async def analyze_image_base64(data: dict):
+    """
+    Analiza zdjęcia przesłanego jako base64.
+    
+    Body JSON:
+    {
+        "image": "base64_encoded_image_data",
+        "mime_type": "image/jpeg"  // opcjonalne, domyślnie image/jpeg
+    }
+    """
+    image_base64 = data.get("image", "")
+    mime_type = data.get("mime_type", "image/jpeg")
+    
+    if not image_base64:
+        raise HTTPException(status_code=400, detail="Brak danych obrazu")
+    
+    # Usuń prefix data URL jeśli istnieje
+    if "," in image_base64:
+        image_base64 = image_base64.split(",")[1]
+    
+    result = analyze_image_with_ai(image_base64, mime_type)
+    return ImageAnalysisResponse(**result)
 
 
 @app.post("/api/upload")

@@ -25,7 +25,11 @@ import {
   FileText,
   ExternalLink,
   Star,
-  ShieldCheck
+  ShieldCheck,
+  Camera,
+  Sparkles,
+  Image,
+  Loader2
 } from 'lucide-react';
 
 // Dane TERYT przykładowe
@@ -356,6 +360,12 @@ function Step3({ data, onUpdate }) {
   const [editingItem, setEditingItem] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({});
+  const [inputMode, setInputMode] = useState(null); // 'ai' | 'manual' | null
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
+  const [aiError, setAiError] = useState(null);
 
   const jednostka = data.jednostka || {};
   const items = data.items || [];
@@ -364,6 +374,78 @@ function Step3({ data, onUpdate }) {
     const year = new Date().getFullYear();
     const num = String(items.length + 1).padStart(6, '0');
     return `${jednostka.kod || '0000000'}-${year}-${num}`;
+  };
+
+  // Funkcja analizy obrazu przez AI
+  const analyzeImage = async (file) => {
+    setIsAnalyzing(true);
+    setAiError(null);
+    setAiResult(null);
+
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('file', file);
+
+      const response = await fetch('http://localhost:8000/api/analyze-image', {
+        method: 'POST',
+        body: formDataToSend
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setAiResult(result);
+        // Auto-wypełnij formularz
+        setFormData(prev => ({
+          ...prev,
+          id_zgloszenia: generateId(),
+          kategoria: result.suggested_fields.kategoria || '',
+          nazwa_przedmiotu: result.suggested_fields.nazwa_przedmiotu || '',
+          opis: result.suggested_fields.opis || '',
+          data_znalezienia: new Date().toISOString().split('T')[0],
+          status: 'oczekuje_na_odbior',
+          kontakt_telefon: '',
+          kontakt_email: '',
+          kontakt_adres: '',
+          godziny_otwarcia: 'pn-pt 8:00-16:00'
+        }));
+        setShowForm(true);
+      } else {
+        setAiError(result.message || 'Nie udało się przeanalizować obrazu');
+      }
+    } catch (error) {
+      console.error('Błąd analizy:', error);
+      setAiError('Błąd połączenia z serwerem. Sprawdź czy backend jest uruchomiony.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Obsługa uploadu zdjęcia
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Obsługa drag & drop zdjęcia
+  const handleImageDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAddNew = () => {
@@ -381,12 +463,23 @@ function Step3({ data, onUpdate }) {
       godziny_otwarcia: 'pn-pt 8:00-16:00'
     });
     setEditingItem(null);
+    setInputMode('manual');
     setShowForm(true);
+  };
+
+  const handleAddWithAI = () => {
+    setInputMode('ai');
+    setImageFile(null);
+    setImagePreview(null);
+    setAiResult(null);
+    setAiError(null);
+    setShowForm(false);
   };
 
   const handleEdit = (item, index) => {
     setFormData({ ...item });
     setEditingItem(index);
+    setInputMode('manual');
     setShowForm(true);
   };
 
@@ -405,11 +498,170 @@ function Step3({ data, onUpdate }) {
     onUpdate({ items: newItems });
     setShowForm(false);
     setEditingItem(null);
+    setInputMode(null);
+    setImageFile(null);
+    setImagePreview(null);
+    setAiResult(null);
   };
 
   const updateFormField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  const resetToModeSelection = () => {
+    setInputMode(null);
+    setShowForm(false);
+    setImageFile(null);
+    setImagePreview(null);
+    setAiResult(null);
+    setAiError(null);
+  };
+
+  // Tryb AI - upload i analiza zdjęcia
+  if (inputMode === 'ai' && !showForm) {
+    return (
+      <div className="fade-in">
+        <div className="step-content__header">
+          <h2 className="step-content__title">
+            <Sparkles size={24} style={{ marginRight: '8px', color: 'var(--gov-primary)' }} />
+            Rozpoznawanie przedmiotu przez AI
+          </h2>
+          <p className="step-content__description">
+            Dodaj zdjęcie przedmiotu, a sztuczna inteligencja automatycznie rozpozna i opisze go
+          </p>
+        </div>
+
+        <div 
+          className={`upload-zone ${imagePreview ? 'upload-zone--has-image' : ''}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleImageDrop}
+          onClick={() => !imagePreview && document.getElementById('ai-image-input').click()}
+          style={{ 
+            cursor: imagePreview ? 'default' : 'pointer',
+            minHeight: '300px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          {imagePreview ? (
+            <div style={{ textAlign: 'center', width: '100%' }}>
+              <img 
+                src={imagePreview} 
+                alt="Podgląd zdjęcia" 
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '400px', 
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }} 
+              />
+              <div style={{ marginTop: 'var(--spacing-md)', display: 'flex', gap: 'var(--spacing-sm)', justifyContent: 'center' }}>
+                <button 
+                  className="btn btn--secondary btn--sm" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImageFile(null);
+                    setImagePreview(null);
+                    setAiResult(null);
+                    setAiError(null);
+                  }}
+                >
+                  <X size={16} /> Usuń zdjęcie
+                </button>
+                <button 
+                  className="btn btn--secondary btn--sm" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    document.getElementById('ai-image-input').click();
+                  }}
+                >
+                  <Image size={16} /> Zmień zdjęcie
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <Camera className="upload-zone__icon" size={64} style={{ color: 'var(--gov-primary)' }} />
+              <div className="upload-zone__title">
+                Przeciągnij zdjęcie lub kliknij
+              </div>
+              <div className="upload-zone__hint">
+                Obsługiwane formaty: JPEG, PNG, GIF, WEBP (max 20MB)
+              </div>
+            </>
+          )}
+          <input
+            id="ai-image-input"
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            style={{ display: 'none' }}
+            onChange={handleImageUpload}
+          />
+        </div>
+
+        {aiError && (
+          <div className="alert alert--error" style={{ marginTop: 'var(--spacing-md)' }}>
+            <AlertCircle className="alert__icon" />
+            <div className="alert__content">
+              <div className="alert__title">Błąd analizy</div>
+              {aiError}
+            </div>
+          </div>
+        )}
+
+        {aiResult && (
+          <div className="alert alert--success" style={{ marginTop: 'var(--spacing-md)' }}>
+            <Sparkles className="alert__icon" />
+            <div className="alert__content">
+              <div className="alert__title">AI rozpoznało przedmiot!</div>
+              <p><strong>Kategoria:</strong> {KATEGORIE.find(k => k.value === aiResult.suggested_fields.kategoria)?.label || aiResult.suggested_fields.kategoria}</p>
+              <p><strong>Nazwa:</strong> {aiResult.suggested_fields.nazwa_przedmiotu}</p>
+              <p><strong>Pewność:</strong> {Math.round(aiResult.confidence * 100)}%</p>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-xl)' }}>
+          <button className="btn btn--secondary" onClick={resetToModeSelection}>
+            <ArrowLeft size={18} /> Powrót
+          </button>
+          {imageFile && !isAnalyzing && (
+            <button 
+              className="btn btn--primary" 
+              onClick={() => analyzeImage(imageFile)}
+            >
+              <Sparkles size={18} /> Analizuj zdjęcie
+            </button>
+          )}
+          {isAnalyzing && (
+            <button className="btn btn--primary" disabled>
+              <Loader2 size={18} className="spin" /> Analizuję...
+            </button>
+          )}
+        </div>
+
+        <div className="alert alert--info" style={{ marginTop: 'var(--spacing-xl)' }}>
+          <Info className="alert__icon" />
+          <div className="alert__content">
+            <div className="alert__title">Jak to działa?</div>
+            <p>
+              AI (GPT-4 Vision) analizuje zdjęcie i automatycznie rozpoznaje:
+            </p>
+            <ul style={{ marginTop: 'var(--spacing-sm)', paddingLeft: 'var(--spacing-lg)' }}>
+              <li>Kategorię przedmiotu (elektronika, dokumenty, portfele, itp.)</li>
+              <li>Nazwę przedmiotu</li>
+              <li>Szczegółowy opis (kolor, marka, cechy charakterystyczne)</li>
+            </ul>
+            <p style={{ marginTop: 'var(--spacing-sm)', fontSize: 'var(--font-size-sm)', color: 'var(--gray-600)' }}>
+              Po analizie możesz edytować i uzupełnić pozostałe pola formularza.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showForm) {
     return (
@@ -570,8 +822,46 @@ function Step3({ data, onUpdate }) {
           </div>
         </div>
 
+        {/* Podgląd zdjęcia AI jeśli użyto */}
+        {imagePreview && inputMode === 'ai' && (
+          <div className="form-group form-group--full" style={{ marginBottom: 'var(--spacing-lg)' }}>
+            <label className="form-label">Zdjęcie przedmiotu (AI)</label>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'flex-start', 
+              gap: 'var(--spacing-md)',
+              padding: 'var(--spacing-md)',
+              background: 'var(--gray-50)',
+              borderRadius: '8px'
+            }}>
+              <img 
+                src={imagePreview} 
+                alt="Zdjęcie przedmiotu" 
+                style={{ 
+                  width: '120px', 
+                  height: '120px', 
+                  objectFit: 'cover',
+                  borderRadius: '8px',
+                  border: '2px solid var(--gov-primary)'
+                }} 
+              />
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', marginBottom: 'var(--spacing-sm)' }}>
+                  <Sparkles size={16} style={{ color: 'var(--gov-primary)' }} />
+                  <span style={{ fontWeight: 600, color: 'var(--gov-primary)' }}>Rozpoznano przez AI</span>
+                </div>
+                {aiResult && (
+                  <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--gray-600)', margin: 0 }}>
+                    {aiResult.image_description}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginTop: 'var(--spacing-xl)' }}>
-          <button className="btn btn--secondary" onClick={() => setShowForm(false)}>
+          <button className="btn btn--secondary" onClick={resetToModeSelection}>
             <X size={18} /> Anuluj
           </button>
           <button 
@@ -586,83 +876,209 @@ function Step3({ data, onUpdate }) {
     );
   }
 
+  // Wybór trybu wprowadzania lub lista wpisów
+  if (!inputMode && items.length > 0) {
+    return (
+      <div className="fade-in">
+        <div className="step-content__header">
+          <h2 className="step-content__title">Zarządzaj wpisami</h2>
+          <p className="step-content__description">
+            Dodaj, edytuj lub usuń wpisy o rzeczach znalezionych
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)', flexWrap: 'wrap', gap: 'var(--spacing-md)' }}>
+          <div>
+            <span className="badge badge--info">
+              Liczba wpisów: {items.length}
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+            <button className="btn btn--secondary" onClick={handleAddWithAI}>
+              <Camera size={18} /> <Sparkles size={14} style={{ marginLeft: '-4px' }} /> Ze zdjęcia (AI)
+            </button>
+            <button className="btn btn--primary" onClick={handleAddNew}>
+              <PenLine size={18} /> Ręcznie
+            </button>
+          </div>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="alert alert--warning">
+            <AlertCircle className="alert__icon" aria-hidden="true" />
+            <div className="alert__content">
+              <div className="alert__title">Brak wpisów</div>
+              Dodaj pierwszy wpis o rzeczy znalezionej.
+            </div>
+          </div>
+        ) : (
+          <div className="data-table-wrapper">
+            <table className="data-table" role="grid">
+              <thead>
+                <tr>
+                  <th scope="col">ID</th>
+                  <th scope="col">Kategoria</th>
+                  <th scope="col">Nazwa</th>
+                  <th scope="col">Data</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Akcje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => (
+                  <tr key={index}>
+                    <td>{item.id_zgloszenia}</td>
+                    <td>{KATEGORIE.find(k => k.value === item.kategoria)?.label || item.kategoria}</td>
+                    <td>{item.nazwa_przedmiotu}</td>
+                    <td>{item.data_znalezienia}</td>
+                    <td>
+                      <span className={`badge ${item.status === 'oczekuje_na_odbior' ? 'badge--warning' : item.status === 'odebrane' ? 'badge--success' : 'badge--info'}`}>
+                        {STATUSY.find(s => s.value === item.status)?.label || item.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="data-table__actions">
+                        <button 
+                          className="btn-icon" 
+                          onClick={() => handleEdit(item, index)}
+                          title="Edytuj"
+                          aria-label="Edytuj wpis"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          className="btn-icon btn-icon--danger" 
+                          onClick={() => handleDelete(index)}
+                          title="Usuń"
+                          aria-label="Usuń wpis"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Ekran wyboru trybu (gdy brak wpisów)
   return (
     <div className="fade-in">
       <div className="step-content__header">
-        <h2 className="step-content__title">Zarządzaj wpisami</h2>
+        <h2 className="step-content__title">Jak chcesz dodać przedmiot?</h2>
         <p className="step-content__description">
-          Dodaj, edytuj lub usuń wpisy o rzeczach znalezionych
+          Wybierz sposób wprowadzenia danych o rzeczy znalezionej
         </p>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
-        <div>
-          <span className="badge badge--info">
-            Liczba wpisów: {items.length}
-          </span>
-        </div>
-        <button className="btn btn--primary" onClick={handleAddNew}>
-          <Plus size={18} /> Dodaj nowy wpis
-        </button>
-      </div>
-
-      {items.length === 0 ? (
-        <div className="alert alert--warning">
-          <AlertCircle className="alert__icon" aria-hidden="true" />
-          <div className="alert__content">
-            <div className="alert__title">Brak wpisów</div>
-            Dodaj pierwszy wpis o rzeczy znalezionej lub wróć do poprzedniego kroku, aby zaimportować dane z pliku.
+      <div className="choice-cards">
+        <div
+          className="choice-card"
+          onClick={handleAddWithAI}
+          onKeyDown={(e) => e.key === 'Enter' && handleAddWithAI()}
+          role="button"
+          tabIndex={0}
+          style={{ background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', borderColor: 'var(--gov-primary)' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Camera className="choice-card__icon" style={{ color: 'var(--gov-primary)' }} />
+            <Sparkles size={20} style={{ color: 'var(--gov-primary)' }} />
+          </div>
+          <div className="choice-card__title" style={{ color: 'var(--gov-primary)' }}>
+            Ze zdjęcia (AI)
+          </div>
+          <div className="choice-card__description">
+            <strong>Rekomendowane!</strong><br/>
+            Dodaj zdjęcie przedmiotu, a AI automatycznie rozpozna kategorię, nazwę i opis
+          </div>
+          <div style={{ 
+            marginTop: 'var(--spacing-sm)', 
+            padding: 'var(--spacing-xs) var(--spacing-sm)', 
+            background: 'var(--gov-primary)', 
+            color: 'white', 
+            borderRadius: '4px',
+            fontSize: 'var(--font-size-sm)',
+            display: 'inline-block'
+          }}>
+            <Sparkles size={12} style={{ marginRight: '4px' }} />
+            Szybciej i łatwiej
           </div>
         </div>
-      ) : (
-        <div className="data-table-wrapper">
-          <table className="data-table" role="grid">
-            <thead>
-              <tr>
-                <th scope="col">ID</th>
-                <th scope="col">Kategoria</th>
-                <th scope="col">Nazwa</th>
-                <th scope="col">Data</th>
-                <th scope="col">Status</th>
-                <th scope="col">Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, index) => (
-                <tr key={index}>
-                  <td>{item.id_zgloszenia}</td>
-                  <td>{KATEGORIE.find(k => k.value === item.kategoria)?.label || item.kategoria}</td>
-                  <td>{item.nazwa_przedmiotu}</td>
-                  <td>{item.data_znalezienia}</td>
-                  <td>
-                    <span className={`badge ${item.status === 'oczekuje_na_odbior' ? 'badge--warning' : item.status === 'odebrane' ? 'badge--success' : 'badge--info'}`}>
-                      {STATUSY.find(s => s.value === item.status)?.label || item.status}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="data-table__actions">
-                      <button 
-                        className="btn-icon" 
-                        onClick={() => handleEdit(item, index)}
-                        title="Edytuj"
-                        aria-label="Edytuj wpis"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button 
-                        className="btn-icon btn-icon--danger" 
-                        onClick={() => handleDelete(index)}
-                        title="Usuń"
-                        aria-label="Usuń wpis"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+
+        <div
+          className="choice-card"
+          onClick={handleAddNew}
+          onKeyDown={(e) => e.key === 'Enter' && handleAddNew()}
+          role="button"
+          tabIndex={0}
+        >
+          <PenLine className="choice-card__icon" />
+          <div className="choice-card__title">Wprowadzanie ręczne</div>
+          <div className="choice-card__description">
+            Wypełnij formularz samodzielnie, wpisując wszystkie dane o przedmiocie
+          </div>
+        </div>
+      </div>
+
+      {items.length > 0 && (
+        <div style={{ marginTop: 'var(--spacing-xl)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+            <h3>Dodane wpisy ({items.length})</h3>
+          </div>
+          <div className="data-table-wrapper">
+            <table className="data-table" role="grid">
+              <thead>
+                <tr>
+                  <th scope="col">ID</th>
+                  <th scope="col">Kategoria</th>
+                  <th scope="col">Nazwa</th>
+                  <th scope="col">Data</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Akcje</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((item, index) => (
+                  <tr key={index}>
+                    <td>{item.id_zgloszenia}</td>
+                    <td>{KATEGORIE.find(k => k.value === item.kategoria)?.label || item.kategoria}</td>
+                    <td>{item.nazwa_przedmiotu}</td>
+                    <td>{item.data_znalezienia}</td>
+                    <td>
+                      <span className={`badge ${item.status === 'oczekuje_na_odbior' ? 'badge--warning' : item.status === 'odebrane' ? 'badge--success' : 'badge--info'}`}>
+                        {STATUSY.find(s => s.value === item.status)?.label || item.status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="data-table__actions">
+                        <button 
+                          className="btn-icon" 
+                          onClick={() => handleEdit(item, index)}
+                          title="Edytuj"
+                          aria-label="Edytuj wpis"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          className="btn-icon btn-icon--danger" 
+                          onClick={() => handleDelete(index)}
+                          title="Usuń"
+                          aria-label="Usuń wpis"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -849,4 +849,24 @@ p {
   }
 }
 
+/* Animacja obracania dla loadera */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Upload zone z obrazkiem */
+.upload-zone--has-image {
+  border-style: solid;
+  background: var(--white);
+}
+
 
