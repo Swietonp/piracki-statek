@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Piracki Statek - Ekscytująca gra hazardowa online. Znajdź ukryte statki i wygraj nagrody! Zgodna z polskimi regulacjami.">
+    <meta name="keywords" content="gra piracka, piracki statek, gra online, hazard, nagrody, gra w przeglądarce">
+    <meta name="author" content="Piracki Statek">
+    <title>🏴‍☠️ Piracki Statek - Gra Online | Wygraj Nagrody!</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏴‍☠️</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Lead Generation Modal -->
+        <div id="leadModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h2>🛟 Aktywuj Statek Ratunkowy</h2>
+                <p>Aby użyć statku ratunkowego, podaj swoje dane i wyraź zgodę marketingową</p>
+                <form id="leadForm">
+                    <input type="text" id="playerName" placeholder="Twoje imię" required>
+                    <input type="email" id="playerEmail" placeholder="Twój email" required>
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="consent" required>
+                        <label for="consent">Akceptuję przetwarzanie danych osobowych w celach marketingowych zgodnie z RODO</label>
+                    </div>
+                    <button type="submit" class="btn-primary">Aktywuj statek ratunkowy 🛟</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Main Game Container -->
+        <div id="gameContainer" class="game-wrapper">
+            <!-- Header -->
+            <header class="game-header">
+                <div class="header-left">
+                    <h1>🏴‍☠️ Piracki Statek</h1>
+                    <p class="player-name">Witaj, <span id="displayName">Graczu</span>!</p>
+                </div>
+                <div class="header-right">
+                    <div class="stat-box">
+                        <div class="stat-label">Poziom</div>
+                        <div class="stat-value" id="currentLevel">1</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Punkty</div>
+                        <div class="stat-value" id="currentPoints">2.00</div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Game Info -->
+            <div class="game-info">
+                <div class="info-card">
+                    <span class="info-label">Rozmiar planszy:</span>
+                    <span class="info-value" id="gridSize">4x5</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Ukryte statki:</span>
+                    <span class="info-value" id="shipsCount">10</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Szansa na wygraną:</span>
+                    <span class="info-value" id="winChance">50%</span>
+                </div>
+                <div class="info-card rescue-info" id="rescueInfoCard">
+                    <span class="info-label">🛟 Statek ratunkowy:</span>
+                    <span class="info-value" id="rescueStatus">NIEAKTYWNY</span>
+                </div>
+            </div>
+
+            <!-- Game Board -->
+            <div id="gameBoard" class="game-board"></div>
+
+            <!-- Message Display -->
+            <div id="messageBox" class="message-box"></div>
+
+            <!-- Decision Modal -->
+            <div id="decisionModal" class="modal" style="display: none;">
+                <div class="modal-content decision-modal">
+                    <h2>🎉 Gratulacje!</h2>
+                    <p class="decision-text">Trafiłeś piracki statek!</p>
+                    <div class="points-display">
+                        <div class="current-points-box">
+                            <div>Twoje punkty:</div>
+                            <div class="big-points" id="decisionPoints">100</div>
+                        </div>
+                    </div>
+                    <p class="decision-question">Co chcesz zrobić?</p>
+                    <div class="decision-buttons">
+                        <button class="btn-cashout" id="cashoutBtn">
+                            💰 Zakończ grę<br>
+                            <small>Zabierz punkty</small>
+                        </button>
+                        <button class="btn-continue" id="continueBtn">
+                            🚀 Graj dalej<br>
+                            <small>Następny poziom</small>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Game Over Modal -->
+            <div id="gameOverModal" class="modal" style="display: none;">
+                <div class="modal-content gameover-modal">
+                    <h2 id="gameOverTitle">🏆 Zwycięstwo!</h2>
+                    <p id="gameOverMessage">Ukończyłeś wszystkie poziomy!</p>
+                    <div class="final-score">
+                        <div>Finalne punkty:</div>
+                        <div class="big-points" id="finalPoints">0</div>
+                    </div>
+                    <button class="btn-primary" id="playAgainBtn">Zagraj ponownie</button>
+                </div>
+            </div>
+
+            <!-- Leaderboard -->
+            <div class="leaderboard">
+                <h3>🏆 Najlepsi gracze</h3>
+                <div class="leaderboard-live">
+                    <span class="live-indicator">🔴 LIVE</span>
+                </div>
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Gracz</th>
+                            <th>Poziom</th>
+                            <th>Punkty</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Compliance Footer -->
+            <footer class="compliance-footer">
+                <p>⚠️ Gra zgodna z polskimi regulacjami. Graj odpowiedzialnie.</p>
+                <p>🔒 Twoje dane są bezpieczne i przetwarzane zgodnie z RODO.</p>
+            </footer>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
+

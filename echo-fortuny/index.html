@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="ECHO FORTUNY - Mistyczna gra karciana pełna losowości. Zbieraj karty, buduj swoją legendę!">
+    <title>ECHO FORTUNY | Mistyczna Gra Karciana</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Favicon (emoji-based for simplicity) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔮</text></svg>">
+</head>
+<body>
+    <!-- Magical Background -->
+    <div class="magical-bg">
+        <div class="stars"></div>
+        <div class="runes"></div>
+        <div class="fog fog-1"></div>
+        <div class="fog fog-2"></div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-rune">☽</div>
+            <h1 class="loading-title">ECHO FORTUNY</h1>
+            <div class="loading-bar-container">
+                <div class="loading-bar" id="loading-bar"></div>
+            </div>
+            <p class="loading-text" id="loading-text">Budzenie starożytnych duchów...</p>
+        </div>
+    </div>
+
+    <!-- Main Game Container -->
+    <div id="game-container" class="game-container hidden">
+        <!-- Header -->
+        <header class="game-header">
+            <div class="logo">
+                <span class="logo-icon">☽</span>
+                <span class="logo-text">ECHO FORTUNY</span>
+            </div>
+            <div class="player-stats">
+                <div class="stat-item" id="stat-souls">
+                    <span class="stat-icon">🔮</span>
+                    <span class="stat-value" id="souls-value">0</span>
+                    <span class="stat-label">Dusze</span>
+                </div>
+                <div class="stat-item" id="stat-level">
+                    <span class="stat-icon">⭐</span>
+                    <span class="stat-value" id="level-value">1</span>
+                    <span class="stat-label">Poziom</span>
+                </div>
+                <div class="stat-item energy-stat" id="stat-energy">
+                    <span class="stat-icon">⚡</span>
+                    <span class="stat-value" id="energy-value">5</span>
+                    <span class="stat-label">Energia</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Character Section -->
+        <section class="character-section">
+            <div class="character-avatar" id="character-avatar">
+                <div class="avatar-glow"></div>
+                <div class="avatar-icon">🧙</div>
+                <div class="avatar-level" id="avatar-level">1</div>
+            </div>
+            <div class="character-info">
+                <h2 class="character-name" id="character-name">Wędrowiec</h2>
+                <div class="character-title" id="character-title">Początkujący Zbieracz</div>
+                <div class="xp-bar">
+                    <div class="xp-fill" id="xp-fill"></div>
+                    <span class="xp-text" id="xp-text">0 / 100 XP</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Draw Area -->
+        <section class="draw-section">
+            <div class="card-deck" id="card-deck">
+                <div class="deck-card deck-1"></div>
+                <div class="deck-card deck-2"></div>
+                <div class="deck-card deck-3"></div>
+                <div class="deck-glow"></div>
+            </div>
+            
+            <button class="draw-btn" id="draw-btn">
+                <span class="draw-btn-icon">✨</span>
+                <span class="draw-btn-text">Losuj Kartę</span>
+                <span class="draw-btn-cost">-1 ⚡</span>
+            </button>
+
+            <div class="draw-options">
+                <button class="multi-draw-btn" id="draw-3-btn" data-count="3">
+                    <span>3x Losuj</span>
+                    <span class="cost">-3 ⚡</span>
+                </button>
+                <button class="multi-draw-btn premium" id="draw-10-btn" data-count="10">
+                    <span>10x Losuj</span>
+                    <span class="cost">Gwarantowana Rzadka!</span>
+                </button>
+            </div>
+            
+            <!-- Transparent probability display -->
+            <div class="probability-info">
+                Szanse: 
+                <span class="common">60% Powszechna</span>
+                <span class="rare">25% Rzadka</span>
+                <span class="epic">12% Epicka</span>
+                <span class="legendary">3% Legendarna</span>
+            </div>
+        </section>
+
+        <!-- Card Reveal Area -->
+        <div class="card-reveal-overlay" id="card-reveal-overlay">
+            <div class="reveal-container">
+                <div class="card-wrapper" id="card-wrapper">
+                    <div class="card" id="revealed-card">
+                        <div class="card-back">
+                            <div class="card-back-pattern"></div>
+                            <div class="card-back-symbol">☽</div>
+                        </div>
+                        <div class="card-front">
+                            <div class="card-rarity-glow"></div>
+                            <div class="card-frame">
+                                <div class="card-image" id="card-image">🗡️</div>
+                                <div class="card-name" id="card-name">Miecz Przeznaczenia</div>
+                                <div class="card-rarity" id="card-rarity">RZADKA</div>
+                                <div class="card-description" id="card-description">Starożytny miecz wykuty w ogniu przeznaczenia.</div>
+                                <div class="card-stats">
+                                    <span class="card-stat" id="card-power">+50 Mocy</span>
+                                    <span class="card-stat" id="card-souls">+25 Dusz</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="near-win-indicator" id="near-win-indicator">
+                    <span class="near-win-text">Prawie Legendarna!</span>
+                    <span class="near-win-emoji">😱</span>
+                </div>
+                
+                <button class="continue-btn" id="continue-btn">Kontynuuj</button>
+            </div>
+        </div>
+
+        <!-- Win Condition Progress -->
+        <section class="win-progress">
+            <h3 class="progress-title">🏆 Cel: Zbierz 5 Legend</h3>
+            <div class="legendary-progress">
+                <div class="legendary-slot" id="leg-slot-1" data-card="l1">
+                    <span class="slot-icon empty">?</span>
+                    <span class="slot-name">Excalibur</span>
+                </div>
+                <div class="legendary-slot" id="leg-slot-2" data-card="l2">
+                    <span class="slot-icon empty">?</span>
+                    <span class="slot-name">Święty Graal</span>
+                </div>
+                <div class="legendary-slot" id="leg-slot-3" data-card="l3">
+                    <span class="slot-icon empty">?</span>
+                    <span class="slot-name">Kamień Filozoficzny</span>
+                </div>
+                <div class="legendary-slot" id="leg-slot-4" data-card="l4">
+                    <span class="slot-icon empty">?</span>
+                    <span class="slot-name">Berło Bogów</span>
+                </div>
+                <div class="legendary-slot" id="leg-slot-5" data-card="l5">
+                    <span class="slot-icon empty">?</span>
+                    <span class="slot-name">Księga Losu</span>
+                </div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="legendary-progress-bar"></div>
+            </div>
+            <p class="progress-text" id="progress-text">0 / 5 legendarnych kart</p>
+        </section>
+
+        <!-- Collection Preview -->
+        <section class="collection-preview">
+            <h3 class="section-title">
+                <span class="title-icon">📚</span>
+                Twoja Kolekcja
+            </h3>
+            <div class="collection-stats">
+                <div class="collection-stat">
+                    <span class="rarity-dot common"></span>
+                    <span id="common-count">0</span>
+                </div>
+                <div class="collection-stat">
+                    <span class="rarity-dot rare"></span>
+                    <span id="rare-count">0</span>
+                </div>
+                <div class="collection-stat">
+                    <span class="rarity-dot epic"></span>
+                    <span id="epic-count">0</span>
+                </div>
+                <div class="collection-stat">
+                    <span class="rarity-dot legendary"></span>
+                    <span id="legendary-count">0</span>
+                </div>
+            </div>
+            <button class="view-collection-btn" id="view-collection-btn">
+                Przeglądaj Kolekcję →
+            </button>
+        </section>
+
+        <!-- Footer Actions -->
+        <footer class="game-footer">
+            <button class="footer-btn" id="shop-btn">
+                <span class="btn-icon">💎</span>
+                <span class="btn-label">Sklep</span>
+            </button>
+            <button class="footer-btn" id="daily-btn">
+                <span class="btn-icon">🎁</span>
+                <span class="btn-label">Bonus</span>
+                <span class="notification-dot" id="daily-notification"></span>
+            </button>
+            <button class="footer-btn" id="ranking-btn">
+                <span class="btn-icon">🏆</span>
+                <span class="btn-label">Ranking</span>
+            </button>
+            <button class="footer-btn" id="settings-btn">
+                <span class="btn-icon">⚙️</span>
+                <span class="btn-label">Opcje</span>
+            </button>
+        </footer>
+    </div>
+
+    <!-- Modals -->
+    <!-- Welcome Modal -->
+    <div class="modal-overlay" id="welcome-modal">
+        <div class="modal welcome-modal">
+            <div class="modal-icon">☽</div>
+            <h2>Witaj, Wędrowcze!</h2>
+            <p>
+                Odkryj tajemnice starożytnych kart i zbierz najpotężniejsze artefakty.
+                Każde losowanie to szansa na legendarne znalezisko!
+            </p>
+            <div class="form-group">
+                <input type="text" id="player-name-input" placeholder="Twój pseudonim..." maxlength="20">
+            </div>
+            <div class="form-group">
+                <input type="email" id="player-email-input" placeholder="E-mail (opcjonalnie - bonus!)">
+                <span class="email-bonus">+5 ⚡ za rejestrację!</span>
+            </div>
+            <button class="modal-btn primary" id="start-btn">Rozpocznij Przygodę</button>
+            <p class="modal-disclaimer">Gra dla osób 18+. Graj odpowiedzialnie.</p>
+        </div>
+    </div>
+
+    <!-- Daily Bonus Modal -->
+    <div class="modal-overlay" id="daily-modal">
+        <div class="modal daily-modal">
+            <div class="modal-icon">🎁</div>
+            <h2>Dzienny Bonus!</h2>
+            <div class="streak-display">
+                <span class="streak-label">Seria:</span>
+                <span class="streak-value" id="streak-value">1</span>
+                <span class="streak-suffix">dni</span>
+            </div>
+            <div class="daily-rewards">
+                <div class="reward-item" id="reward-energy">
+                    <span class="reward-icon">⚡</span>
+                    <span class="reward-value">+5</span>
+                    <span class="reward-name">Energia</span>
+                </div>
+                <div class="reward-item" id="reward-souls">
+                    <span class="reward-icon">🔮</span>
+                    <span class="reward-value">+100</span>
+                    <span class="reward-name">Dusze</span>
+                </div>
+            </div>
+            <button class="modal-btn primary" id="claim-daily-btn">Odbierz Bonus</button>
+        </div>
+    </div>
+
+    <!-- Collection Modal -->
+    <div class="modal-overlay" id="collection-modal">
+        <div class="modal collection-modal">
+            <button class="modal-close" id="close-collection">&times;</button>
+            <h2>📚 Twoja Kolekcja</h2>
+            <div class="collection-filters">
+                <button class="filter-btn active" data-filter="all">Wszystkie</button>
+                <button class="filter-btn" data-filter="common">Powszechne</button>
+                <button class="filter-btn" data-filter="rare">Rzadkie</button>
+                <button class="filter-btn" data-filter="epic">Epickie</button>
+                <button class="filter-btn" data-filter="legendary">Legendarne</button>
+            </div>
+            <div class="collection-grid" id="collection-grid">
+                <!-- Cards will be inserted here -->
+            </div>
+            <div class="collection-empty" id="collection-empty">
+                <span class="empty-icon">🃏</span>
+                <p>Nie masz jeszcze żadnych kart w tej kategorii.</p>
+                <p>Losuj karty, aby zbudować swoją kolekcję!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ranking Modal -->
+    <div class="modal-overlay" id="ranking-modal">
+        <div class="modal ranking-modal">
+            <button class="modal-close" id="close-ranking">&times;</button>
+            <h2>🏆 Ranking Zbieraczy</h2>
+            <div class="ranking-tabs">
+                <button class="ranking-tab active" data-tab="souls">Dusze</button>
+                <button class="ranking-tab" data-tab="legendary">Legendarne</button>
+                <button class="ranking-tab" data-tab="collection">Kolekcja</button>
+            </div>
+            <div class="ranking-list" id="ranking-list">
+                <!-- Rankings will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Shop Modal -->
+    <div class="modal-overlay" id="shop-modal">
+        <div class="modal shop-modal">
+            <button class="modal-close" id="close-shop">&times;</button>
+            <h2>💎 Sklep</h2>
+            <div class="shop-items">
+                <div class="shop-item" data-item="energy-small">
+                    <div class="item-icon">⚡</div>
+                    <div class="item-info">
+                        <span class="item-name">5 Energii</span>
+                        <span class="item-desc">Doładowanie energii</span>
+                    </div>
+                    <button class="buy-btn" data-price="100">100 🔮</button>
+                </div>
+                <div class="shop-item" data-item="energy-large">
+                    <div class="item-icon">⚡⚡</div>
+                    <div class="item-info">
+                        <span class="item-name">20 Energii</span>
+                        <span class="item-desc">Mega doładowanie!</span>
+                    </div>
+                    <button class="buy-btn" data-price="350">350 🔮</button>
+                </div>
+                <div class="shop-item featured" data-item="lucky-charm">
+                    <div class="item-badge">POPULARNY</div>
+                    <div class="item-icon">🍀</div>
+                    <div class="item-info">
+                        <span class="item-name">Talizman Szczęścia</span>
+                        <span class="item-desc">+10% szans na rzadkie przez 1h</span>
+                    </div>
+                    <button class="buy-btn" data-price="250">250 🔮</button>
+                </div>
+                <div class="shop-item legendary-item" data-item="guaranteed-legendary">
+                    <div class="item-badge">LIMITOWANY</div>
+                    <div class="item-icon">⭐</div>
+                    <div class="item-info">
+                        <span class="item-name">Gwarantowana Legendarna</span>
+                        <span class="item-desc">Jedno losowanie = legendarna karta!</span>
+                    </div>
+                    <button class="buy-btn" data-price="1000">1000 🔮</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Level Up Modal -->
+    <div class="modal-overlay" id="levelup-modal">
+        <div class="modal levelup-modal">
+            <div class="levelup-particles"></div>
+            <div class="modal-icon">🎉</div>
+            <h2>Nowy Poziom!</h2>
+            <div class="new-level" id="new-level">2</div>
+            <div class="new-title" id="new-title">Uczeń Mistrzów</div>
+            <div class="levelup-rewards">
+                <div class="reward-item">
+                    <span>⚡ +2 Max Energia</span>
+                </div>
+                <div class="reward-item">
+                    <span>🔮 +200 Dusz</span>
+                </div>
+            </div>
+            <button class="modal-btn primary" id="levelup-continue">Kontynuuj</button>
+        </div>
+    </div>
+
+    <!-- No Energy Modal -->
+    <div class="modal-overlay" id="no-energy-modal">
+        <div class="modal no-energy-modal">
+            <div class="modal-icon">😢</div>
+            <h2>Brak Energii!</h2>
+            <p>Twoja energia się wyczerpała. Poczekaj na regenerację lub odwiedź sklep.</p>
+            <div class="energy-timer">
+                <span>Następna energia za: </span>
+                <span class="timer-value" id="energy-timer">5:00</span>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn secondary" id="wait-energy">Poczekaj</button>
+                <button class="modal-btn primary" id="buy-energy">Kup Energię</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
+

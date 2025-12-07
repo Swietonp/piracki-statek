@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RNG Tests - Kopalnie Prawdopodobieństwa</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #fff;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+        .passed {
+            background: #2ecc71;
+            color: #000;
+        }
+        .failed {
+            background: #e74c3c;
+            color: #fff;
+        }
+        .chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 5px;
+            margin: 20px 0;
+            height: 300px;
+        }
+        .bar {
+            flex: 1;
+            background: linear-gradient(to top, #f1c40f, #c9a20c);
+            position: relative;
+            border-radius: 5px 5px 0 0;
+            min-height: 5px;
+        }
+        .bar-label {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .bar-value {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #00f5ff;
+        }
+        h1 {
+            color: #f1c40f;
+        }
+        h2 {
+            color: #9b59b6;
+            margin-top: 30px;
+        }
+        .expected {
+            color: #2ecc71;
+        }
+        .actual {
+            color: #3498db;
+        }
+        button {
+            padding: 10px 20px;
+            background: #f1c40f;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #c9a20c;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 RNG Tests - Kopalnie Prawdopodobieństwa</h1>
+    
+    <div>
+        <button onclick="runQuickTest()">Quick Test (1K)</button>
+        <button onclick="runMediumTest()">Medium Test (10K)</button>
+        <button onclick="runFullTest()">Full Test (100K)</button>
+        <button onclick="runLuckTest()">Test z Luck Bonus</button>
+    </div>
+    
+    <h2>Wyniki testów:</h2>
+    <div id="results"></div>
+    
+    <h2>Rozkład wyników:</h2>
+    <div id="distribution"></div>
+    
+    <div class="chart" id="chart"></div>
+
+    <script type="module">
+        import { CRYSTALS } from '../src/main.js';
+        
+        // Make available globally for inline handlers
+        window.CRYSTALS = CRYSTALS;
+        
+        function rollCrystal(luckBonus = 0, depthBonus = 0) {
+            const modifiedChances = {};
+            const totalLuckBonus = luckBonus + depthBonus;
+            
+            const rareTypes = ['diamond', 'ruby', 'emerald', 'sapphire', 'gold'];
+            
+            for (const type in CRYSTALS) {
+                let chance = CRYSTALS[type].baseChance;
+                
+                if (rareTypes.includes(type)) {
+                    chance *= (1 + totalLuckBonus);
+                }
+                
+                modifiedChances[type] = Math.max(0.001, chance);
+            }
+            
+            // Normalize
+            const total = Object.values(modifiedChances).reduce((a, b) => a + b, 0);
+            for (const type in modifiedChances) {
+                modifiedChances[type] /= total;
+            }
+            
+            // Roll
+            const random = Math.random();
+            let cumulative = 0;
+            
+            const crystalOrder = ['diamond', 'ruby', 'emerald', 'sapphire', 'gold', 'amethyst', 'quartz', 'rock', 'empty'];
+            
+            for (const type of crystalOrder) {
+                cumulative += modifiedChances[type];
+                if (random <= cumulative) {
+                    return type;
+                }
+            }
+            
+            return crystalOrder[crystalOrder.length - 1];
+        }
+        
+        function runTest(iterations, luckBonus = 0, depthBonus = 0) {
+            const results = {};
+            const startTime = performance.now();
+            
+            for (let i = 0; i < iterations; i++) {
+                const crystal = rollCrystal(luckBonus, depthBonus);
+                results[crystal] = (results[crystal] || 0) + 1;
+            }
+            
+            const endTime = performance.now();
+            
+            return {
+                results,
+                iterations,
+                duration: endTime - startTime
+            };
+        }
+        
+        function displayResults(testData) {
+            const resultsDiv = document.getElementById('results');
+            const distributionDiv = document.getElementById('distribution');
+            const chartDiv = document.getElementById('chart');
+            
+            resultsDiv.innerHTML = '';
+            distributionDiv.innerHTML = '';
+            chartDiv.innerHTML = '';
+            
+            // Summary
+            resultsDiv.innerHTML += `<div class="test-result passed">
+                ✅ Wykonano ${testData.iterations.toLocaleString()} iteracji w ${testData.duration.toFixed(2)}ms
+                (${(testData.iterations / testData.duration * 1000).toFixed(0)} rolls/s)
+            </div>`;
+            
+            // Distribution table
+            let html = '<table style="width: 100%; margin-top: 10px; border-collapse: collapse;">';
+            html += '<tr style="border-bottom: 2px solid #fff;"><th>Kryształ</th><th>Oczekiwane</th><th>Rzeczywiste</th><th>Różnica</th><th>Status</th></tr>';
+            
+            let allPassed = true;
+            const maxBarHeight = 250;
+            let maxCount = 0;
+            
+            for (const type in CRYSTALS) {
+                const expected = CRYSTALS[type].baseChance * testData.iterations;
+                const actual = testData.results[type] || 0;
+                const diff = ((actual - expected) / expected * 100).toFixed(2);
+                const tolerance = 30; // 30% tolerance
+                const passed = Math.abs(diff) < tolerance;
+                
+                if (!passed) allPassed = false;
+                if (actual > maxCount) maxCount = actual;
+                
+                const crystal = CRYSTALS[type];
+                
+                html += `<tr style="border-bottom: 1px solid #333;">
+                    <td style="padding: 8px;">${crystal.emoji} ${crystal.name}</td>
+                    <td style="padding: 8px;" class="expected">${expected.toFixed(0)}</td>
+                    <td style="padding: 8px;" class="actual">${actual}</td>
+                    <td style="padding: 8px; color: ${passed ? '#2ecc71' : '#e74c3c'}">${diff > 0 ? '+' : ''}${diff}%</td>
+                    <td style="padding: 8px;">${passed ? '✅' : '❌'}</td>
+                </tr>`;
+                
+                // Chart bar
+                const barHeight = (actual / maxCount) * maxBarHeight;
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = barHeight + 'px';
+                bar.innerHTML = `
+                    <div class="bar-value">${actual}</div>
+                    <div class="bar-label">${crystal.emoji}</div>
+                `;
+                chartDiv.appendChild(bar);
+            }
+            
+            html += '</table>';
+            distributionDiv.innerHTML = html;
+            
+            if (allPassed) {
+                resultsDiv.innerHTML += '<div class="test-result passed">✅ Wszystkie rozkłady w tolerancji (±30%)</div>';
+            } else {
+                resultsDiv.innerHTML += '<div class="test-result failed">❌ Niektóre rozkłady poza tolerancją</div>';
+            }
+        }
+        
+        window.runQuickTest = () => {
+            console.log('Running quick test (1K iterations)...');
+            const data = runTest(1000);
+            displayResults(data);
+        };
+        
+        window.runMediumTest = () => {
+            console.log('Running medium test (10K iterations)...');
+            const data = runTest(10000);
+            displayResults(data);
+        };
+        
+        window.runFullTest = () => {
+            console.log('Running full test (100K iterations)...');
+            const data = runTest(100000);
+            displayResults(data);
+        };
+        
+        window.runLuckTest = () => {
+            console.log('Running luck bonus test (10K iterations with 50% luck)...');
+            const data = runTest(10000, 0.5, 0);
+            displayResults(data);
+        };
+        
+        // Auto-run quick test on load
+        setTimeout(() => runQuickTest(), 500);
+    </script>
+</body>
+</html>
+

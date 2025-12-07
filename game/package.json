@@ -1,0 +1,14 @@
+{
+  "name": "kopalnie-prawdopodobienstwa",
+  "version": "1.0.0",
+  "description": "Kopalnie Prawdopodobieństwa - Wydobywaj kryształy i buduj swoją mozaikę szczęścia!",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.11"
+  }
+}

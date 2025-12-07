@@ -1,0 +1,23 @@
+{
+  "name": "piracki-statek",
+  "version": "1.0.0",
+  "description": "Nowoczesna gra przeglądarowa - Znajdź ukryte pirackie statki",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 8000 -o",
+    "dev": "npx http-server -p 8000 -o -c-1"
+  },
+  "keywords": [
+    "game",
+    "pirate",
+    "html5",
+    "javascript",
+    "phaser",
+    "browser-game"
+  ],
+  "author": "HackNation Team",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
+

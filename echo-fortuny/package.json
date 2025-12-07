@@ -1,0 +1,28 @@
+{
+  "name": "echo-fortuny",
+  "version": "1.0.0",
+  "description": "ECHO FORTUNY - Mistyczna gra karciana oparta na losowości z progresją postaci",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "game",
+    "cards",
+    "fortune",
+    "collection",
+    "gacha",
+    "lootbox",
+    "transparent",
+    "polish"
+  ],
+  "author": "HackNation Team",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.11"
+  }
+}
+
+
