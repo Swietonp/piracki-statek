@@ -16,14 +16,16 @@
         <!-- Lead Generation Modal -->
         <div id="leadModal" class="modal" style="display: none;">
             <div class="modal-content">
+                <span class="modal-close" id="closeLeadModal">&times;</span>
                 <h2>🛟 Aktywuj Statek Ratunkowy</h2>
                 <p>Aby użyć statku ratunkowego, podaj swoje dane i wyraź zgodę marketingową</p>
                 <form id="leadForm">
                     <input type="text" id="playerName" placeholder="Twoje imię" required>
+                    <input type="text" id="playerSurname" placeholder="Twoje nazwisko" required>
                     <input type="email" id="playerEmail" placeholder="Twój email" required>
                     <div class="checkbox-container">
                         <input type="checkbox" id="consent" required>
-                        <label for="consent">Akceptuję przetwarzanie danych osobowych w celach marketingowych zgodnie z RODO</label>
+                        <label for="consent">Wyrażam zgodę na przetwarzanie moich danych osobowych w celach marketingowych zgodnie z RODO</label>
                     </div>
                     <button type="submit" class="btn-primary">Aktywuj statek ratunkowy 🛟</button>
                 </form>
@@ -44,7 +46,7 @@
                         <div class="stat-value" id="currentLevel">1</div>
                     </div>
                     <div class="stat-box">
-                        <div class="stat-label">Punkty</div>
+                        <div class="stat-label">Kredyty</div>
                         <div class="stat-value" id="currentPoints">2.00</div>
                     </div>
                 </div>
@@ -83,7 +85,7 @@
                     <p class="decision-text">Trafiłeś piracki statek!</p>
                     <div class="points-display">
                         <div class="current-points-box">
-                            <div>Twoje punkty:</div>
+                            <div>Twoje kredyty:</div>
                             <div class="big-points" id="decisionPoints">100</div>
                         </div>
                     </div>
@@ -91,7 +93,7 @@
                     <div class="decision-buttons">
                         <button class="btn-cashout" id="cashoutBtn">
                             💰 Zakończ grę<br>
-                            <small>Zabierz punkty</small>
+                            <small>Zabierz kredyty</small>
                         </button>
                         <button class="btn-continue" id="continueBtn">
                             🚀 Graj dalej<br>
@@ -108,7 +110,7 @@
                     <h2 id="gameOverTitle">🏆 Zwycięstwo!</h2>
                     <p id="gameOverMessage">Ukończyłeś wszystkie poziomy!</p>
                     <div class="final-score">
-                        <div>Finalne punkty:</div>
+                        <div>Finalne kredyty:</div>
                         <div class="big-points" id="finalPoints">0</div>
                     </div>
                     <button class="btn-primary" id="playAgainBtn">Zagraj ponownie</button>
@@ -126,8 +128,9 @@
                         <tr>
                             <th>#</th>
                             <th>Gracz</th>
+                            <th>Miasto</th>
                             <th>Poziom</th>
-                            <th>Punkty</th>
+                            <th>Kredyty</th>
                         </tr>
                     </thead>
                     <tbody id="leaderboardBody">

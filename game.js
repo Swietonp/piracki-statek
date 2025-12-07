@@ -26,16 +26,27 @@ const levelConfig = {
     8: { gridRows: 10, gridCols: 6, shipsCount: 3, points: 888888.89 }   // 5% (3/60)
 };
 
+// Polish cities for leaderboard
+const polishCities = [
+    'Warszawa', 'Kraków', 'Wrocław', 'Poznań', 'Gdańsk', 
+    'Szczecin', 'Łódź', 'Katowice', 'Lublin', 'Białystok',
+    'Gdynia', 'Sopot', 'Toruń', 'Zakopane', 'Kielce'
+];
+
+function randomCity() {
+    return polishCities[Math.floor(Math.random() * polishCities.length)];
+}
+
 // Hardcoded Leaderboard Data
 const leaderboardData = [
-    { name: 'Anna K.', level: 8, points: 888888.89 },
-    { name: 'Piotr M.', level: 7, points: 44444.44 },
-    { name: 'Katarzyna W.', level: 6, points: 4444.44 },
-    { name: 'Michał B.', level: 5, points: 666.67 },
-    { name: 'Zofia L.', level: 4, points: 133.33 },
-    { name: 'Jan S.', level: 3, points: 33.33 },
-    { name: 'Ewa P.', level: 2, points: 10 },
-    { name: 'Tomasz R.', level: 1, points: 4 }
+    { name: 'Anna K.', city: 'Warszawa', level: 8, points: 888888.89 },
+    { name: 'Piotr M.', city: 'Kraków', level: 7, points: 44444.44 },
+    { name: 'Katarzyna W.', city: 'Gdańsk', level: 6, points: 4444.44 },
+    { name: 'Michał B.', city: 'Wrocław', level: 5, points: 666.67 },
+    { name: 'Zofia L.', city: 'Poznań', level: 4, points: 133.33 },
+    { name: 'Jan S.', city: 'Szczecin', level: 3, points: 33.33 },
+    { name: 'Ewa P.', city: 'Łódź', level: 2, points: 10 },
+    { name: 'Tomasz R.', city: 'Katowice', level: 1, points: 4 }
 ];
 
 // Initialize game when DOM is ready
@@ -51,11 +62,27 @@ document.addEventListener('DOMContentLoaded', function() {
 // Initialize rescue activation button
 function initializeRescueActivation() {
     const rescueCard = document.getElementById('rescueInfoCard');
+    const leadModal = document.getElementById('leadModal');
+    const closeLeadModal = document.getElementById('closeLeadModal');
     
     rescueCard.addEventListener('click', function() {
         if (!gameState.rescueShipEnabled) {
             // Show lead modal to activate rescue ship
-            document.getElementById('leadModal').style.display = 'flex';
+            leadModal.style.display = 'block';
+        }
+    });
+    
+    // Close modal on X click
+    if (closeLeadModal) {
+        closeLeadModal.addEventListener('click', function() {
+            leadModal.style.display = 'none';
+        });
+    }
+    
+    // Close modal on outside click
+    leadModal.addEventListener('click', function(e) {
+        if (e.target === leadModal) {
+            leadModal.style.display = 'none';
         }
     });
     
@@ -72,27 +99,29 @@ function initializeLeadForm() {
         e.preventDefault();
         
         const name = document.getElementById('playerName').value;
+        const surname = document.getElementById('playerSurname').value;
         const email = document.getElementById('playerEmail').value;
         const consent = document.getElementById('consent').checked;
         
         if (!consent) {
-            alert('Musisz zaakceptować przetwarzanie danych osobowych.');
+            alert('Musisz wyrazić zgodę na przetwarzanie danych osobowych.');
             return;
         }
         
         // Save player data
-        gameState.playerName = name;
+        const fullName = `${name} ${surname.charAt(0)}.`;
+        gameState.playerName = fullName;
         gameState.playerEmail = email;
         gameState.rescueShipEnabled = true;
         
         // Store in localStorage (simulating lead generation)
-        saveLead(name, email);
+        saveLead(fullName, email);
         
         // Hide modal
         leadModal.style.display = 'none';
         
         // Update display
-        document.getElementById('displayName').textContent = name;
+        document.getElementById('displayName').textContent = fullName;
         document.getElementById('rescueStatus').textContent = 'AKTYWNY';
         document.getElementById('rescueInfoCard').classList.add('active');
         document.getElementById('rescueInfoCard').style.cursor = 'default';
@@ -104,16 +133,16 @@ function initializeLeadForm() {
     });
 }
 
-function saveLead(name, email) {
+function saveLead(fullName, email) {
     try {
         const leads = JSON.parse(localStorage.getItem('pirackiStatekLeads') || '[]');
         leads.push({
-            name: name,
+            name: fullName,
             email: email,
             timestamp: new Date().toISOString()
         });
         localStorage.setItem('pirackiStatekLeads', JSON.stringify(leads));
-        console.log('Lead saved:', { name, email });
+        console.log('Lead saved:', { name: fullName, email });
     } catch (error) {
         console.error('Error saving lead:', error);
         // Gracefully handle localStorage errors (e.g., quota exceeded, private browsing)
@@ -127,15 +156,14 @@ function initializeLeaderboard() {
     
     leaderboardData.forEach((entry, index) => {
         const tr = document.createElement('tr');
-        const pointsText = entry.points >= 1000 
-            ? entry.points.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : entry.points.toFixed(2);
+        const pointsText = Math.floor(entry.points).toLocaleString('pl-PL');
         
         tr.innerHTML = `
             <td>${index + 1}</td>
             <td>${entry.name}</td>
-            <td>Poziom ${entry.level}</td>
-            <td>${pointsText} pkt</td>
+            <td>${entry.city || 'N/A'}</td>
+            <td>${entry.level}</td>
+            <td>${pointsText}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -152,7 +180,12 @@ function updateLeaderboard(name, level, points) {
     
     if (existingIndex === -1) {
         // Add current player to leaderboard only if not already there
-        leaderboardData.push({ name: playerName, level, points });
+        leaderboardData.push({ 
+            name: playerName, 
+            city: randomCity(),
+            level, 
+            points 
+        });
     }
     
     leaderboardData.sort((a, b) => b.points - a.points);
@@ -166,15 +199,14 @@ function updateLeaderboard(name, level, points) {
             tr.classList.add('highlight');
         }
         
-        const pointsText = entry.points >= 1000 
-            ? entry.points.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : entry.points.toFixed(2);
+        const pointsText = Math.floor(entry.points).toLocaleString('pl-PL');
         
         tr.innerHTML = `
             <td>${index + 1}</td>
             <td>${entry.name}</td>
-            <td>Poziom ${entry.level}</td>
-            <td>${pointsText} pkt</td>
+            <td>${entry.city || 'N/A'}</td>
+            <td>${entry.level}</td>
+            <td>${pointsText}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -357,7 +389,7 @@ function handleHit() {
     
     document.getElementById('currentPoints').textContent = pointsText;
     
-    showMessage(`🎉 Trafiony! Teraz masz ${pointsText} pkt!`, 'success');
+    showMessage(`🎉 Trafiony! Teraz masz ${pointsText} kredytów!`, 'success');
     
     // Check if final level
     if (gameState.currentLevel === 8) {
@@ -378,17 +410,19 @@ function handleMiss() {
     
     // Game over immediately on miss
     setTimeout(() => {
-        // Keep previous level points (0 if lost on level 1)
-        const prevLevel = gameState.currentLevel - 1;
-        const prevPoints = prevLevel >= 1 ? levelConfig[prevLevel].points : 0;
-        gameState.points = prevPoints;
-        
-        // Don't add to leaderboard if level 0 (lost on first level)
-        const leaderboardLevel = Math.max(prevLevel, 0);
-        if (prevPoints > 0 || prevLevel > 0) {
-            updateLeaderboard(gameState.playerName, leaderboardLevel, gameState.points);
+        // If lost on level 1, points are 0
+        if (gameState.currentLevel === 1) {
+            gameState.points = 0;
+        } else {
+            // Keep previous level points
+            const prevLevel = gameState.currentLevel - 1;
+            gameState.points = levelConfig[prevLevel].points;
         }
         
+        // Add to leaderboard (even if 0 points)
+        const displayLevel = gameState.currentLevel === 1 ? 0 : gameState.currentLevel - 1;
+        updateLeaderboard(gameState.playerName, displayLevel, gameState.points);
+
         showGameOver(false);
     }, 2000);
 }
@@ -403,7 +437,7 @@ function showDecisionModal() {
     
     document.getElementById('decisionPoints').textContent = pointsText;
     
-    modal.style.display = 'flex';
+    modal.style.display = 'block';
     
     // Cash out button
     document.getElementById('cashoutBtn').onclick = function() {
@@ -444,7 +478,7 @@ function showGameOver(isWin) {
     
     finalPoints.textContent = pointsText;
     
-    modal.style.display = 'flex';
+    modal.style.display = 'block';
     
     // Play again button
     document.getElementById('playAgainBtn').onclick = function() {
